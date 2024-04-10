@@ -1,0 +1,471 @@
+---
+title: "Module 1: More on Correlation and Regression with R"
+author: "Sanchi Gupta, ALY 6015, 20463"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+------------------------------------------------------------------------
+
+#### Introduction:
+
+This report presents an in-depth statistical analysis of the Ames Housing dataset, focusing on the correlation between property attributes and sale prices. Using R, we conducted exploratory data analysis and regression modeling to identify key factors that drive housing values. Our aim is to establish a predictive model that accurately reflects the dynamics of real estate pricing.
+
+------------------------------------------------------------------------
+
+#### Q1. Loading the dataset into R
+
+```{r}
+#reading the dataset
+property <- read.csv("AmesHousing.csv")
+
+#installing Libraries
+library(dplyr)
+library(corrplot)
+library(ggplot2)
+library(knitr)
+library(car)
+library(leaps)
+```
+
+------------------------------------------------------------------------
+
+#### Q2 Perform Exploratory Data Analysis and use descriptive statistics to describe the data.
+
+##### 2. Exploratory Data Analysis
+
+```{r}
+# Summarizing the dataset
+summary(property)
+```
+
+This summarizes the data types for each column in the dataset. It also provides us the data type for each variable along with mean for the numerical columns.
+
+```{r}
+# Plotting histogram for Sale Price
+options(scipen = 100, digits = 10)
+hist(property$SalePrice)
+
+```
+
+The distribution is right-skewed, which means that there are a number of properties on the higher end of the sale price that are less frequent but significantly impact the shape of the distribution.\
+The majority of the data appears to be concentrated in the lower to middle price range, indicating that the sale prices' median and mode are lower than their mean.\
+There's a wide range of prices represented, but there's a concentration of values in the lower price range, indicating less variability.
+
+```{r}
+# Creating Boxplot for Sale Price
+boxplot(property$SalePrice, main="Boxplot of SalePrice")
+```
+
+The line within the box indicates the median sale price. The line is closer to the bottom of the box, suggesting that the median is on the lower end of the middle 50% of the data.
+
+The straight line extending from the box indicates the range for the rest of the data, except for points that are considered outliers. The presence of outliers and the position of the median towards the bottom of the box suggest that the distribution of sale prices is right-skewed, which is consistent with the histogram above.
+
+------------------------------------------------------------------------
+
+#### Q3 Prepare the dataset for modeling by imputing missing values with the variable's mean value or any other value that you prefer.
+
+##### 3. Imputing Missing Values
+
+```{r}
+# Imputing missing values with mean for numeric columns only
+property <- property %>%
+  mutate_if(is.numeric, ~ ifelse(is.na(.), mean(., na.rm = TRUE), .))
+# (OpenAI,2023)
+
+```
+
+------------------------------------------------------------------------
+
+#### Q4 Use the cor() function to produce a correlation matrix of the numeric values.
+
+##### 4. Correlation Matrix
+
+```{r}
+                          
+#Filtering numeric columns from the dataset
+numeric_columns <- sapply(property, is.numeric)
+property_numeric <- property[, numeric_columns]
+
+# Removing extra columns 
+property_extract <- subset(property_numeric, select = -c(Order, PID))
+
+# Calculating correlation matrix
+correlation_table <- cor(property_extract, use = "complete.obs")
+
+# Displaying correlation matrix using kable
+kable(correlation_table, format = "markdown")
+
+
+```
+
+------------------------------------------------------------------------
+
+#### Q5 Produce a correlation matrix plot, and explain how to interpret it.
+
+##### 5. Correlation Matrix Plot
+
+```{r}
+# Plotting correlation matrix
+corrplot(correlation_table, 
+         method = "color",
+         type = "upper",
+         order = "hclust",
+         tl.col = "black",
+         tl.srt = 45,
+         tl.cex = 0.5,
+         addrect = 3)
+```
+
+The blue color denotes positive correlations, whereas the red color denotes the negative correlations in the above correlation matrix plot. The intensity of both colors, red and blue, indicates the strength of the correlation, with darker colors suggesting a stronger correlation.
+
+To interpret the correlation between two variables, we take the corresponding row or column for one variable and the remaining for the other variable. The point of intersection of these two variables tells us the correlation between the two variables. This correlation matrix promotes quick visualization and analysis by highlighting the relationship between two variables.
+
+(Quanthub, 2024)
+
+------------------------------------------------------------------------
+
+#### Q6 Make a scatter plot for the X continuous variable with the highest correlation with Sale Price. Do the same for the X variable with the lowest correlation with SalePrice. Finally, make a scatter plot between X and SalePrice with the correlation closest to 0.5. Interpret the scatter plots and describe how the patterns differ.
+
+##### 6. Scatter plots
+
+-   **Highest Correlation with Sale Price**
+
+```{r}
+# Finding the column with the highest correlation with SalePrice excluding SalePrice
+max_corr <- names(sort(correlation_table["SalePrice",], decreasing = TRUE)[2]) 
+#(OpenAI,2023)
+print(max_corr)
+```
+
+The strongest relationship exists between Sale Price and Overall Quality. Here, we have chosen the second-largest variable since, per the matrix, sale price has the greatest, unexplainable correlation of 1 with itself.
+
+```{r}
+# Scatter plot for the second-highest correlated variable with SalePrice
+ggplot(property, aes_string(x = max_corr, y = "SalePrice")) +
+  geom_point() +
+  ggtitle(paste("Scatter Plot for Overall.Qual vs SalePrice"))
+
+```
+
+The relationship between the overall quality of the home (x axis) and the sale price (y axis) is depicted in the above graph. The plot above shows that there is a positive relationship between the sale price and the overall quality of the home. The sale price rises in proportion to the total quality, suggesting that quality plays a significant role in deciding sale price.
+
+-   **Lowest Correlation with Sale Price**
+
+```{r}
+# Finding the column with the lowest correlation with SalePrice
+min_corr <- names(which.min(correlation_table[,"SalePrice"]))
+# (OpenAI,2023)
+print(min_corr)
+
+```
+
+The weakest relationship exists between Sale Price and Enclosed Porch.
+
+```{r}
+# Scatter plot for the lowest correlated variable with SalePrice
+ggplot(property, aes_string(x = min_corr, y = "SalePrice")) +
+  geom_point() +
+  labs(title = "Scatter Plot for Enclosed Porch vs SalePrice",
+       x = "Enclosed Porch", 
+       y = "Sale Price") +
+  theme_minimal()
+```
+
+The above graphs represent a correlation between sale price on the y axis and enclosed porch area on the x axis. The graph is plotted in a hexagonal manner and is concentrated at the bottom left corner. This indicates a weak correlation between the enclosed porch and the sale price. Despite having a higher sale price, many residences do not have an enclosed porch area, as indicated by the several dots that are gathered around 0.
+
+This suggests that the size of the enclosed porch is not a reliable indicator of a parcel's sale price.
+
+-   **Correlation close to 0.5 with Sale Price**
+
+```{r}
+# Finding the column with the correlation closest to 0.5 with SalePrice
+closest_corr <- names(which.min(abs(correlation_table[,"SalePrice"] - 0.5)))
+# (OpenAI,2023)
+print(closest_corr)
+```
+
+Total Rooms above ground has a correlation close to 0.5 with Sale Price. ' **`abs(... - 0.5)`**' calculates the absolute difference between each correlation value in the sale price and 0.5. This relationship is not too strong or too weak.
+
+```{r}
+# Scatter plot for variable whose correlation is closest to 0.5 with SalePrice
+ggplot(property, aes_string(x = closest_corr, y = "SalePrice")) +
+  geom_point() +
+  labs(title = "Scatter Plot for Total Rooms (above ground) vs SalePrice",
+       x = "Total rooms above ground", 
+       y = "Sale Price") +
+  theme_light()
+```
+
+The above graph plots the relationship between total rooms above ground and sale price. It depicts a positive and non-colinear correlation between the two variables.
+
+The range of sale prices increases with the number of rooms, indicating that larger residences (with more rooms) have a higher degree of price variety. The vertical range of points for each room count shows variations in sale prices that might be related to other elements such as the rooms' size, location, or quality.Q7 Fit a regression model in R, using at least 3 continuous variables.
+
+------------------------------------------------------------------------
+
+#### Q7 Fit a regression model in R, using at least 3 continuous variables.
+
+##### 7. Regression Model
+
+```{r}
+# Sorting out top 4 variables which have high correlation with sale price
+top4_corr <- names(sort(correlation_table["SalePrice", ], decreasing = TRUE)[2:5])
+print(top4_corr)
+```
+
+```{r}
+# Fitting a linear regression model using lm
+model_1 <- lm(SalePrice ~ Overall.Qual + Gr.Liv.Area + Garage.Cars + Garage.Area, data = property)
+
+# Summarizing of the regression model
+summary(model_1)
+```
+
+------------------------------------------------------------------------
+
+#### Q8 Report the model in equation form and interpret each coefficient of the model in the context of this problem.
+
+##### 8. Interpretation
+
+The linear regression model can be expressed in equation form as follows:
+
+***SalePrice = −103,815.38 + (27,996.91 × Overall.Qual) + (50.86 × Gr.Liv.Area) + (5,584.51 × Garage.Cars) + ( 58.86 × Garage.Area) + ϵ***
+
+**Interpretation of Coefficients using p-value:**
+
+-   **Intercept (-103,815.38):** The intercept represents the estimated Sale Price when all predictor variables are zero. In this context, it might not have a meaningful interpretation.
+
+-   **Overall.Qual (27,996.91):** For each one-unit increase in Overall Quality, the Sale Price is estimated to increase by \$27,996.91. Houses with higher overall quality tend to have higher Sale Price. The p-value is extremely low, indicating that Overall.Qual is highly statistically significant.
+
+-   **Gr.Liv.Area (50.86):** For each one-unit increase in Ground Living Area, the Sale Price is estimated to increase by \$50.86.Larger living areas are associated with higher Sale Prices. The p-value is extremely low, indicating that Gr.Liv.Area is highly statistically significant. It suggests that the ground living area is a significant predictor of SalePrice.
+
+-   **Garage.Cars (5,584.51):** For each one-unit increase in the number of cars that fit in the garage, the Sale Price is estimated to increase by \$5,584.51. The p-value is less than 0.05, indicating that Garage.Cars is statistically significant at the 5% significance level. However, it's not as strongly significant as the other variables.
+
+-   **Garage.Area (58.86):** For each one-unit increase in Garage Area, the Sale Price is estimated to increase by \$58.86. Larger garage areas are associated with higher Sale Prices. The p-value is extremely low, indicating that Garage.Area is highly statistically significant.
+
+**Summary**
+
+-   Our model indicates that Garage Area, Gr Liv Area, and Overall Qual are highly statistically significant predictors of Sale Price.
+
+-   However, Garage Cars is statistically significant but to a lesser extent compared to the other variables.
+
+(Frost, 2023)
+
+------------------------------------------------------------------------
+
+#### Q9 Use the plot() function to plot your regression model. Interpret the four graphs that are produced.
+
+##### 9. Graphs for Regression Model
+
+```{r}
+# Plotting the regression model
+plot(model_1)
+```
+
+**Interpretation**
+
+-   **Graph Residuals vs Fitted**
+
+    This plot is used to verify the hypothesis that there is no systematic relationship between the residuals and the fitted values, which would point to non-linearity in the data. The assumption is supported if there is a horizontal line with randomly distributed points surrounding it.
+
+-   **Graph Q-Q Residuals**
+
+    This plot shows whether the residuals are normally distributed or not. The dashed line is followed by points that imply normality. Variations from this line indicate departures from normality.
+
+-   **Graph Scale-Location**
+
+    This figure illustrates the residuals' distribution across the predictor range. It is employed to verify homoscedasticity, or the assumption of equal variance. The red line should ideally be roughly horizontal at the y-axis value of 1.
+
+-   **Graph Residuals vs Leverage**
+
+    The following illustration assists in locating any significant examples within the regression model. Points with greater "influence" on the regression equation are those that are farthest from zero on the x-axis (leverage). These influencing locations are indicated by Cook's distance lines (dashed lines). Points outside of the dashed lines suggest high leverage.
+
+    ------------------------------------------------------------------------
+
+#### Q10 Check your model for multicollinearity and report your findings. What steps would you take to correct multicollinearity if it exists?
+
+##### 10. Check for Multicollinearity [M. ,2022, Kaggle]
+
+```{r}
+# Checking for multicollinearity using VIF
+vif_values <- vif(model_1)  #(M.,2022,Kaggle)
+
+# Displaying VIF values
+print(vif_values)
+```
+
+VIF measures how much the variance of an estimated regression coefficient increases if the predictors are correlated.
+
+**Interpretation:**
+
+Overall.Qual (VIF: 1.856): A VIF value around 1.856 suggests low to moderate collinearity. This variable does not exhibit significant multicollinearity.
+
+Gr.Liv.Area (VIF: 1.577): A VIF value around 1.577 indicates low to moderate collinearity. This variable does not exhibit significant multicollinearity.
+
+Garage.Cars (VIF: 5.154): A VIF value of 5.154 suggests moderate collinearity. While it's not extremely high, it indicates that Garage.Cars is somewhat correlated with other predictors.
+
+Garage.Area (VIF: 4.880): A VIF value of 4.880 also suggests moderate collinearity. Garage.Area is somewhat correlated with other predictors.
+
+**Steps to correct multicollinearity:**
+
+1.  We can increase the sample size. Increasing the sample will introduce more variation in the data series, which reduces the effect of sampling error and helps increase precision when estimating various properties of the data.
+
+2.  We can remove some of the highly correlated variables as it may skew the results.
+
+3.  We replace highly correlated regressors with a linear combination of them.
+
+4.  Before correcting we should check the model performance. Sometimes, even with moderate collinearity, the model may perform well.
+
+    (Frost, 2023)
+
+#### Q11 Check your model for outliers and report your findings. Should these observations be removed from the model?
+
+##### 11. Check for Outliers
+
+```{r}
+# Plotting the Regression Model
+plot(model_1, which = 1) # Residuals vs Fitted
+plot(model_1, which = 5) # Cook's Distance Plot
+
+# Calculating Cook's Distance
+cooks.distance <- cooks.distance(model_1)
+
+# Identifying potential outliers
+potential_outliers <- which(cooks.distance > 4/(nrow(property)-length(coef(model_1))))
+
+#(OpenAI,2023)
+
+```
+
+**Interpretation of graph:**
+
+1.  **Residual vs Fitted**
+
+    Certain spots on the right in the plot above have significantly bigger residuals than others. These could be anomalies, especially the ones with extremely high sale price values that the model does not accurately forecast. To make it simpler to recognize the points in the dataset, we have labeled them with their observation numbers (e.g., 2182, 2181, 1499).
+
+2.  **Residuals vs Leverage**
+
+    Since observations 2182, 2181, and 1499 go above the Cook's distance threshold lines, the Residuals vs. Leverage plot suggests that these observations could be significant outliers or influential points because of their high leverage and/or big residuals.
+
+**Consideration:** Outliers may indicate data points that are unusual or extreme, it doesn't necessarily mean they should be from the model. It's crucial to carefully evaluate the context, nature of the data, and the goals of your analysis before deciding how to handle outliers.
+
+------------------------------------------------------------------------
+
+#### Q12 Attempt to correct any issues that you have discovered in your model. Did your changes improve the model? Why or why not?
+
+##### 12. Correction
+
+```{r}
+# Removing potential outliers
+df_clean <- property[-potential_outliers, ]
+
+# Fitting a linear regression model using lm
+model_clean <- lm(SalePrice ~ Overall.Qual + Gr.Liv.Area + Garage.Area, data = df_clean)
+
+# Checking the summary of the cleaned model
+summary(model_clean)
+```
+
+**Issues Discovered:**
+
+-   We have removed garage cars because of its high multicollinearity as shown in question 10. This will help improve the stability and interpretability of the regression model.
+
+-   The adjusted R-squared is a measure of how well the independent variables explain the variability in the dependent variable. In your case, it's quite high at 0.8178, suggesting a good fit.
+
+-   The p-values associated with the coefficients indicate their significance. All predictors (Overall.Qual, Gr.Liv.Area, Garage.Area) appear to be statistically significant.
+
+```{r}
+# Plotting the model
+plot(model_clean)
+options(scipen = 100, digits = 10)
+```
+
+**Interpretation:**
+
+-   Residuals vs Fitted: There is still some curvature in the residuals, suggesting a potential non-linearity in the relationship between predictors and SalePrice.
+
+-   Residuals vs Leverage: No points significantly exceed the Cook's distance thresholds, indicating that the remaining data points are not unduly influential.
+
+-   Q-Q Plot: The residuals mostly follow the theoretical quantiles, implying that the normality assumption holds reasonably well, except for potential deviations at the tails.
+
+-   Scale-Location: The spread of residuals is not entirely constant, suggesting some remaining heteroscedasticity.
+
+Overall, the model shows improvement after outlier removal but may benefit from further exploration of non-linear relationships and potential transformation to achieve homoscedasticity.
+
+------------------------------------------------------------------------
+
+#### Q13 Identify the "best" model using the all-subsets regression method. State the preferred model in equation form.
+
+##### 13. Identifying the best model
+
+```{r}
+# Defining predictors
+predictors <- c("Overall.Qual", "Gr.Liv.Area", "Garage.Area")
+
+# Subset the relevant predictors and response variable
+data_subset <- subset(df_clean, select = c("SalePrice", predictors))
+
+# Generating all subsets of the predictors up to 9 variables
+models <- regsubsets(SalePrice ~ ., data = data_subset, nvmax = 9)
+
+
+# Plotting a table of models showing variables in each model ordered by the selection statistic (adjusted R2)
+plot(models, scale = "adjr2")
+
+#(OpenAI,2023)
+
+```
+
+**Interpretation:**
+
+-   Bars-Every bar depicts a model using a distinct set of predictors. The model's adjusted R-squared value is indicated by the bar's length.
+
+-   Black and Grey Scale: The predictors included in the model are indicated by the filled portion of the bar (shown in black or grey). A predictor that has a filled block next to its name indicates that it is part of the model associated with that bar.
+
+-   Adjusted R-squared (adjr2): The adjusted R-squared that takes the number of predictors in the model into account is called adjusted R-squared. While accounting for the number of predictors, it offers an indicator of how well the model fits the data.
+
+-   Models with fewer predictors have lower adjusted R-squared values, as indicated by the length of the bars decreasing as the number of predictors reduces.
+
+    As a result, the model containing Overall.Qual, Gr.Liv.Area, and Garage.Area is recommended based on the adjusted R-squared values. This model has the greatest adjusted R-squared, indicating that it offers the best balance between model complexity (number of predictors) and fit.
+
+**Equation form of preferred model**
+
+SalePrice= −81275.833 + (24160.729 × Overall.Qual) + (51.141 × Gr.Liv.Area) + (74.945 × Garage.Area)
+
+------------------------------------------------------------------------
+
+#### Q14 Compare the preferred model from step 13 with your model from step 12. How do they differ? Which model do you prefer and why?
+
+##### 14. **Model Comparison:**
+
+Since both models are identical and have been selected through different methods, we can consider the following points for comparison:
+
+-   **Consistency:** The fact that both methods lead to the same model is a positive sign of consistency in variable selection.
+
+-   **Interpretability:** Evaluate how well the selected variables align with the understanding of the problem and make sure the chosen predictors are interpretable and align with domain knowledge.
+
+-   **Model Performance:** Consider additional metrics beyond adjusted R-squared, such as AIC or BIC, to assess overall model performance and complexity.
+
+-   **Robustness:** Check for robustness by assessing the impact of outliers or influential observations on the model.
+
+------------------------------------------------------------------------
+
+#### Conclusion:
+
+Our analytical investigation into the Ames Housing dataset has yielded a regression model that identifies Overall Quality, Ground Living Area, and Garage Area as significant predictors of sale prices. The model has demonstrated stability and improved accuracy after refinement steps like addressing multicollinearity and outlier influences. This study illustrates the critical role of statistical rigor in real estate price prediction and offers a foundation for informed decision-making in the housing
+
+------------------------------------------------------------------------
+
+#### References:
+
+-   *4 Types of Data - Nominal, Ordinal, Discrete, Continuous*. (2023, November 6). Great Learning Blog: Free Resources What Matters to Shape Your Career! <https://www.mygreatlearning.com/blog/types-of-data/>
+
+-   C. (2024, January 11). How to Read a Correlation Heatmap? QuantHub. <https://www.quanthub.com/how-to-read-a-correlation-heatmap/>
+
+-   Frost, J. (2023, March 21). How to Interpret P-values and Coefficients in Regression Analysis. Statistics by Jim. <https://statisticsbyjim.com/regression/interpret-coefficients-p-values-regression/>
+
+-   M. (2022, December 7). Multicollinearity - detection and remedies. Kaggle. <https://www.kaggle.com/code/marcinrutecki/multicollinearity-detection-and-remedies#Multicollinearity---detection-and-remedies>
+
+-   Frost, J. (2023, January 29). *Multicollinearity in Regression Analysis: Problems, Detection, and Solutions*. Statistics by Jim. <https://statisticsbyjim.com/regression/multicollinearity-in-regression-analysis/>
+
+-   Hayes, A. (2023, February 25). Multicollinearity: Meaning, Examples, and FAQs. Investopedia. <https://www.investopedia.com/terms/m/multicollinearity.asp#:~:text=Multicollinearity%20is%20a%20statistical%20concept,in%20less%20reliable%20statistical%20inferences.>
