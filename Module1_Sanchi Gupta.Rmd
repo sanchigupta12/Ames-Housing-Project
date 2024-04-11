@@ -1,6 +1,6 @@
 ---
-title: "Module 1: More on Correlation and Regression with R"
-author: "Sanchi Gupta, ALY 6015, 20463"
+title: "Correlation and Regression with R"
+
 date: "`r Sys.Date()`"
 output: html_document
 ---
